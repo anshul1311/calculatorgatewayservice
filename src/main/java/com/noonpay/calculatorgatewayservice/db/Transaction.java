@@ -15,6 +15,16 @@ public class Transaction {
     private double creditsRemaining;
     private double creditsUsed;
 
+    public String getTxnStatus() {
+        return txnStatus;
+    }
+
+    public void setTxnStatus(String txnStatus) {
+        this.txnStatus = txnStatus;
+    }
+
+    private String txnStatus;
+
 
     public Integer getId() {
         return id;
