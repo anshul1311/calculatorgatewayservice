@@ -21,6 +21,6 @@ public class calculateController {
 
     @RequestMapping(value = "/calculate",method = RequestMethod.GET)
     public ResponseEntity<AddResponsePojo> addController(@RequestBody RequestPojo requestPojo) throws NotFoundException {
-        return additionService.hitAdditionService(requestPojo);
+        return additionService.calculate(requestPojo);
     }
 }
