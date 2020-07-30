@@ -1,4 +1,6 @@
-package com.noonpay.calculatorgatewayservice.db;
+package com.noonpay.calculatorgatewayservice.entity;
+
+import com.noonpay.calculatorgatewayservice.enums.TxnStatus;
 
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -19,7 +21,7 @@ public class Transaction {
         return txnStatus;
     }
 
-    public void setTxnStatus(String txnStatus) {
+    public void setTxnStatus(TxnStatus txnStatus) {
         this.txnStatus = txnStatus;
     }
 

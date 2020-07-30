@@ -1,4 +1,4 @@
-package com.noonpay.calculatorgatewayservice.db;
+package com.noonpay.calculatorgatewayservice.entity;
 
 import javax.persistence.*;
 

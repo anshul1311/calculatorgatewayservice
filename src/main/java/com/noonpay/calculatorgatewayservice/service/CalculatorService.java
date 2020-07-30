@@ -1,8 +1,8 @@
 package com.noonpay.calculatorgatewayservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.noonpay.calculatorgatewayservice.db.User;
-import com.noonpay.calculatorgatewayservice.db.UserRepository;
+import com.noonpay.calculatorgatewayservice.entity.User;
+import com.noonpay.calculatorgatewayservice.repository.UserRepository;
 import com.noonpay.calculatorgatewayservice.pojos.AddResponsePojo;
 import com.noonpay.calculatorgatewayservice.pojos.ErrorResponse;
 import com.noonpay.calculatorgatewayservice.pojos.RequestPojo;
@@ -62,74 +62,81 @@ public class CalculatorService {
     @Autowired
     TxnHistory txnHistory;
     @Autowired
-     RedisTemplate<String,String> redisTemplate;
+    RedisTemplate<String, String> redisTemplate;
 
 
     public CalculatorService() {
     }
 
-    public ResponseEntity<AddResponsePojo> calculate(RequestPojo requestPojo) throws NotFoundException {
+    public ResponseEntity<?> calculate(RequestPojo requestPojo) throws NotFoundException {
+        Optional<User> userResult = userRepository.findById(requestPojo.getId());
 
-        ResponseEntity<Double> response=performOperation(requestPojo);
+        if (!userResult.isPresent()) {
+            return errorResponse("user not found","user not found");
 
-        if(response==null){
-            //ResponseEntity.badRequest().body(ErrorResponse.class);
-            errorResponse.setErrorMessage("Not Found");
-            errorResponse.setErrorDescription("abcdasd");
-            addResponsePojo.setErrorResponse(errorResponse);
-            return ResponseEntity.badRequest().body(addResponsePojo);
-        }
-        else {
-            addResponsePojo.setTotal(response.getBody().doubleValue());
-            System.out.println("Value is" + response.getBody().doubleValue());
-            System.out.println("Value is" + addResponsePojo.getTotal());
-        }
-
-        if(response.getStatusCode().value()==200){
-            addResponsePojo.setStatus("Ok");
-           txnHistory.setTxnHistory(requestPojo);
-           RedisEntity user=new RedisEntity();
-           user.setOperation(requestPojo.getOperation());
-           user.setTotal(response.getBody().doubleValue());
-            updateCacheRedis(requestPojo.getId(),user);
-            ResponseEntity<String> str=restTemplate.postForEntity("http://localhost:"+port+kafkaPath+requestPojo.getOperation().toUpperCase()+" Txn is success"+addResponsePojo.getTotal(),null,String.class);
-        System.out.print("Kafka Message sent"+str.getBody());
+        }else if(performOperation(requestPojo).getBody() instanceof ErrorResponse){
+                return performOperation(requestPojo);
         }else{
 
-            errorResponse.setErrorMessage("Not Found");
-            errorResponse.setErrorDescription("abcdasd");
-            addResponsePojo.setErrorResponse(errorResponse);
-        }
-        return ResponseEntity.ok(addResponsePojo);
-    }
 
-    public ResponseEntity<Double> performOperation(RequestPojo requestPojo) throws NotFoundException {
-        Optional<User> userResult = userRepository.findById(requestPojo.getId());
-        String url="";
-            if (!userResult.isPresent()) {
-                //throw new NotFoundException("User does not exist");
-                errorResponse.setErrorMessage("Not Found");
-                errorResponse.setErrorDescription("abcdasd");
-                //AddResponsePojo addResponsePojo=new AddResponsePojo();
-                addResponsePojo.setErrorResponse(errorResponse);
+            if (performOperation(requestPojo) == null) {
+                //ResponseEntity.badRequest().body(ErrorResponse.class);
+                errorResponse("response cannot be null", "response cannot be null");
+
             }
 
-        switch(requestPojo.getOperation()){
-            case "add":
-            url= addUrl+":"+addPort+addPath;
-            case "subtract":
-                url= subtractUrl+":"+subtractPort+subtractPath;
 
-            case "divide":
-                url= divideUrl+":"+dividePort+dividePath;
+            if (performOperation(requestPojo).getBody().getClass()==(Double.class)) {
+                ResponseEntity<Double> actualResponse = (ResponseEntity<Double>) performOperation(requestPojo);
+                addResponsePojo.setTotal(actualResponse.getBody().doubleValue());
+                System.out.println("Value is" + addResponsePojo.getTotal());
+                addResponsePojo.setStatus("Ok");
+                txnHistory.setTxnHistory(requestPojo);
+                RedisEntity user = new RedisEntity();
+                user.setOperation(requestPojo.getOperation());
+                user.setTotal(actualResponse.getBody().doubleValue());
+                updateCacheRedis(requestPojo.getId(), user);
+                ResponseEntity<String> str = restTemplate.postForEntity("http://localhost:" + port + kafkaPath + requestPojo.getOperation().toUpperCase() + " Txn is success" + addResponsePojo.getTotal(), null, String.class);
+                System.out.print("Kafka Message sent" + str.getBody());
+                return ResponseEntity.ok(addResponsePojo);
 
-            case "multiply":
-                url= multiplyUrl+":"+multiplyPort+multiplyPath;
-
+            } else {
+               return errorResponse("not found", "not found");
+            }
         }
+    }
 
-        return  restTemplate.getForEntity(url+"?value1="+requestPojo.getValue1()+"&value2="+requestPojo.getValue2(),Double.class);
+    public ResponseEntity<?> performOperation(RequestPojo requestPojo) throws NotFoundException {
+        String url = "";
 
+
+            switch (requestPojo.getOperation()) {
+                case "add":
+                    url = addUrl + ":" + addPort + addPath;
+                    break;
+                case "subtract":
+                    url = subtractUrl + ":" + subtractPort + subtractPath;
+                break;
+                case "divide":
+                    url = divideUrl + ":" + dividePort + dividePath;
+                    break;
+                case "multiply":
+                    url = multiplyUrl + ":" + multiplyPort + multiplyPath;
+                    break;
+                default:
+                    return errorResponse("operation not valid","operation not valid");
+            }
+            return restTemplate.getForEntity(url + "?value1=" + requestPojo.getValue1() + "&value2=" + requestPojo.getValue2(), Double.class);
+
+        //return restTemplate.getForEntity(url + "?value1=" + requestPojo.getValue1() + "&value2=" + requestPojo.getValue2(), Double.class);
+
+    }
+
+    public ResponseEntity<ErrorResponse> errorResponse(String message,String description){
+    ErrorResponse errorResponse=new ErrorResponse();
+    errorResponse.setErrorMessage(message);
+        errorResponse.setErrorDescription(description);
+    return ResponseEntity.badRequest().body(errorResponse);
     }
 
     private boolean updateCacheRedis(Integer userid, RedisEntity userDetails) {
@@ -144,9 +151,7 @@ public class CalculatorService {
 
             System.out.println(jsonStr);
             redisTemplate.opsForValue().set("userid_" + userid, jsonStr);
-        }
-
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
